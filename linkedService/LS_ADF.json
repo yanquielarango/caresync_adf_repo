@@ -1,0 +1,10 @@
+{
+	"name": "LS_ADF",
+	"properties": {
+		"annotations": [],
+		"type": "AzureBlobFS",
+		"typeProperties": {
+			"url": "https://rgcaresync.dfs.core.windows.net/"
+		}
+	}
+}

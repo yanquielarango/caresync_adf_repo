@@ -16,16 +16,15 @@
 				"userProperties": [],
 				"typeProperties": {
 					"source": {
-						"type": "AzureSqlSource",
-						"sqlReaderQuery": {
+						"type": "PostgreSqlV2Source",
+						"query": {
 							"value": "select * from ctrl.table_config where table_id = @{pipeline().parameters.table_id}",
 							"type": "Expression"
 						},
-						"queryTimeout": "02:00:00",
-						"partitionOption": "None"
+						"queryTimeout": "02:00:00"
 					},
 					"dataset": {
-						"referenceName": "AzureSqlTable1",
+						"referenceName": "DS_PostgreSql",
 						"type": "DatasetReference"
 					},
 					"firstRowOnly": true
@@ -34,6 +33,8 @@
 			{
 				"name": "Set Start Time",
 				"type": "SetVariable",
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
 				"dependsOn": [],
 				"policy": {
 					"secureOutput": false,
@@ -51,20 +52,9 @@
 			{
 				"name": "Source to Landing Ingestion",
 				"type": "Copy",
-				"dependsOn": [
-					{
-						"activity": "Read Table Details",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					},
-					{
-						"activity": "Set Start Time",
-						"dependencyConditions": [
-							"Succeeded"
-						]
-					}
-				],
+				"state": "Inactive",
+				"onInactiveMarkAs": "Succeeded",
+				"dependsOn": [],
 				"policy": {
 					"timeout": "0.12:00:00",
 					"retry": 0,

@@ -1,10 +1,6 @@
 # CareSync: Healthcare Data Engineering Platform
  
-![Azure Data Factory](https://img.shields.io/badge/Azure%20Data%20Factory-0078D4?logo=microsoftazure&logoColor=white)
-![Azure Databricks](https://img.shields.io/badge/Azure%20Databricks-FF3621?logo=databricks&logoColor=white)
-![PySpark](https://img.shields.io/badge/PySpark-E25A1C?logo=apachespark&logoColor=white)
-![Azure SQL](https://img.shields.io/badge/Azure%20SQL-0078D4?logo=microsoftsqlserver&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/Neon%20PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+
  
 CareSync is an end to end data engineering project for healthcare data. It moves data from a PostgreSQL database to a Lakehouse on Azure. It also keeps a log of every run.
  

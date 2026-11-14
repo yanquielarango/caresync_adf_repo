@@ -6,34 +6,32 @@
 ![Azure SQL](https://img.shields.io/badge/Azure%20SQL-0078D4?logo=microsoftsqlserver&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/Neon%20PostgreSQL-4169E1?logo=postgresql&logoColor=white)
  
-CareSync is an end to end data engineering project for healthcare data. It moves data from a PostgreSQL database to a Lakehouse on Azure. It also keeps a log of every run.
+CareSync is an end to end data engineering project for healthcare data. It brings data from two different sources into a Lakehouse on Azure. It also keeps a log of every run.
  
 The project shows how to build a metadata driven ETL pipeline. One configuration table controls all the tables. There is no need to build a new pipeline for each source table.
  
 ## What this project does
  
-- Reads data from Neon PostgreSQL.
-- Supports full load and incremental load.
-- Saves the raw files in Azure Storage (Landing layer).
+- Reads data from two source types: Neon PostgreSQL and CSV files.
+- Supports full load and incremental load for relational sources.
+- Saves the raw data in Azure Storage (Landing layer).
 - Processes the data in Azure Databricks (Bronze and Silver layers).
 - Saves the pipeline settings and the watermarks in Azure SQL Database.
 - Writes an audit record for every table and every run.
 ## Architecture
  
-The current version follows a Landing, Bronze and Silver design.
+The current version follows a Landing, Bronze and Silver design. The Gold layer is planned for the future.
  
 ```mermaid
 flowchart TD
-    A[Neon PostgreSQL] --> B[Azure Data Factory]
-    B --> C[Read table metadata]
-    C --> D{Load type}
-    D -->|Full| E[Azure Storage: Landing]
-    D -->|Incremental| E
-    E --> F[Databricks: Landing to Bronze]
-    F --> G[(Bronze)]
-    G --> H[Databricks: Bronze to Silver]
-    H --> I[(Silver)]
-    J[(Azure SQL Database<br/>ctrl.table_config<br/>ctrl.audit_log)] <--> B
+    A[Neon PostgreSQL] --> C[Azure Data Factory]
+    B[CSV Files] --> C
+    C -->|Metadata driven orchestration| D[Azure Storage: Landing]
+    D --> E[Azure Databricks]
+    E --> F[(Bronze)]
+    F --> G[(Silver)]
+    G -.-> H[(Gold: future layer)]
+    J[(Azure SQL Database<br/>ctrl.table_config<br/>ctrl.audit_log)] <--> C
 ```
  
 Azure Data Factory controls the whole workflow. Azure SQL Database works next to it. It stores the configuration and the audit records.
@@ -47,10 +45,29 @@ Azure Data Factory controls the whole workflow. Azure SQL Database works next to
 | Apache Spark / PySpark | Data transformation |
 | Azure SQL Database | Metadata and audit logging |
 | Azure Storage | Landing data storage |
-| Neon PostgreSQL | Source database |
+| Neon PostgreSQL | Relational source database |
+| CSV Files | File based data sources |
 | Unity Catalog | Data governance and volumes |
 | SQL | Configuration queries and watermark management |
 | Python | Data processing logic |
+ 
+## Data sources
+ 
+CareSync reads from different source types. All of them use the same ingestion design.
+ 
+### Neon PostgreSQL
+ 
+Azure Data Factory extracts the relational data from Neon PostgreSQL. This source supports:
+ 
+- Full extraction
+- Incremental extraction
+- Watermark based change tracking
+- Configurable source tables
+### CSV files
+ 
+Azure Data Factory also ingests structured datasets from CSV files. This way file data and database data can live together in the same platform.
+ 
+Both sources feed the same Bronze and Silver processing.
  
 ## How it works
  
@@ -69,6 +86,8 @@ The main pipeline reads all active tables. Then it uses a `ForEach` activity to 
  
 ### 2. Full and incremental load
  
+For relational sources the pipeline has two loading strategies.
+ 
 **Full load** reads all the records from the source table.
  
 **Incremental load** reads only the records that changed since the last successful run. It uses the watermark column.
@@ -84,22 +103,26 @@ The upper limit is saved once at the start of the run. This way new records that
  
 ### 3. Landing layer
  
-Azure Data Factory saves the source data in Azure Storage. Each extraction goes to its own folder with a timestamp. This makes it easy to find each batch.
+Azure Data Factory saves the source data in Azure Storage. The landing layer is one central place for all source systems. Each ingestion batch has its own folder so it is easy to find.
  
 ```text
 landing/
-└── neon_postgres/
-    ├── doctors/
-    │   └── YYYY-MM-DD_HH-mm-ss/
-    ├── hospitals/
-    │   └── YYYY-MM-DD_HH-mm-ss/
-    └── patients/
-        └── YYYY-MM-DD_HH-mm-ss/
+├── neon_postgres/
+│   ├── doctors/
+│   │   └── YYYY-MM-DD_HH-mm-ss/
+│   ├── hospitals/
+│   │   └── YYYY-MM-DD_HH-mm-ss/
+│   └── patients/
+│       └── YYYY-MM-DD_HH-mm-ss/
+│
+└── csv_files/
+    └── source_dataset/
+        └── ingestion_batch/
 ```
  
 ### 4. Bronze layer
  
-The `Landing_to_bronze` notebook reads the batch from a Unity Catalog Volume. It receives three parameters:
+The `Landing_to_bronze` notebook reads the landing data from a Unity Catalog Volume. It receives parameters like these:
  
 - `landing_timestamp`
 - `source_system`
@@ -137,11 +160,12 @@ The audit process works like this:
  
 1. The pipeline inserts an audit record when processing starts.
 2. The ingestion and transformation activities run.
-3. If everything works the record is updated to `SUCCESS` with the number of records.
-4. If something fails the record is updated to `FAILED`.
+3. If everything works the record is updated to `SUCCESS`.
+4. The number of processed records is saved.
+5. If something fails the record is updated to `FAILED`.
 With this table it is easy to see what happened in each run and to find errors fast.
  
-## Project structure
+## Project components
  
 This is a logical view of the solution. It is not a folder tree of the repository.
  
@@ -163,8 +187,11 @@ CareSync/
 │   └── Stored Procedures
 │
 └── Azure Storage
-    └── landing/
-        └── neon_postgres/
+    ├── Landing/
+    │   ├── neon_postgres/
+    │   └── csv_files/
+    │
+    └── Unity Catalog Volumes
 ```
  
 ## Prerequisites
@@ -177,21 +204,26 @@ To run this project you need:
 - An Azure SQL Database
 - An Azure Storage account
 - A Neon PostgreSQL database
+- Access to the CSV datasets
 - The right permissions and credentials for all services
 ## Setup
  
 1. Create the linked service for Neon PostgreSQL in Azure Data Factory.
-2. Create the linked service for Azure SQL Database.
-3. Create the linked service for Azure Storage.
+2. Create the linked service for Azure Storage.
+3. Create the linked service for Azure SQL Database.
 4. Create the linked service for Databricks.
-5. Create and fill the `ctrl.table_config` table.
-6. Create the Unity Catalog schemas and the landing volume.
-7. Set up the Databricks cluster and the notebook parameters.
+5. Set up the CSV source datasets and file locations.
+6. Create and fill the `ctrl.table_config` table.
+7. Create the Unity Catalog schemas and the landing volume.
+8. Set up the Databricks cluster and the notebook parameters.
 > **Security note:** Keep credentials, connection strings and tokens in Azure Key Vault or a similar tool. Never upload secrets to GitHub.
  
 ## Skills demonstrated
  
 - Metadata driven ETL
+- Multi source data ingestion
+- Relational database ingestion
+- CSV file ingestion
 - Reusable parent and child pipelines
 - Full and incremental extraction
 - Watermark based change tracking
@@ -205,8 +237,15 @@ To run this project you need:
 - SQL stored procedures
 ## Project status
  
-**Done:** Landing, Bronze and Silver processing. Metadata driven orchestration. Full and incremental extraction. Watermark management. Execution audit logging.
+**Done:**
  
+- Two data sources: Neon PostgreSQL and CSV files
+- Landing, Bronze and Silver processing
+- Metadata driven orchestration
+- Full and incremental extraction for relational sources
+- Watermark management
+- Central execution audit logging
+- Success and failure status tracking
 **Next steps:** These ideas are not done yet.
  
 - Gold layer and analytical data models

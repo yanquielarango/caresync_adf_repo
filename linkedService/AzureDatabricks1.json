@@ -12,7 +12,8 @@
 					"type": "LinkedServiceReference"
 				},
 				"secretName": "adf-dbr-token"
-			}
+			},
+			"existingClusterId": "1114-133626-581yiraa"
 		}
 	}
 }
